@@ -1,10 +1,11 @@
+#include <linux/cdev.h>
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/uaccess.h>
 
-#define DEVICE_NAME "test"
+#define DEVICE_NAME "TestDevice"  // name--> appears in /proc/devices
 
 static int     dev_open(struct inode *, struct file *);
 static int     dev_release(struct inode *, struct file *);
@@ -18,14 +19,34 @@ static struct file_operations fops = {
     .release = dev_release,
 };
 
-static int major;
+struct cdev *mcdev;
+static int   major;
+int ret;  // will be used to hold return values of functions; this is because
+          // the kernel stack is very small so declaring variables all over the
+          // pass in our module functions eats up the stack very fast
+dev_t dev_num;  // will hold major number that kernel gives us
 
 static int __init test_init(void) {
-  major = register_chrdev(0, DEVICE_NAME, &fops);
+  ret = alloc_chrdev_region(&dev_num, 0, 1, DEVICE_NAME);
 
-  if (major < 0) {
+  if (ret < 0) {
     printk(KERN_ALERT "Load failed\n");
     return major;
+  }
+
+  major = MAJOR(dev_num);
+  printk(KERN_INFO "%s: major number is %d", DEVICE_NAME, major);
+  printk(KERN_INFO "\tuse \"use mknod /dev/%s c %d 0\" for device file",
+         DEVICE_NAME,
+         major);
+  mcdev        = cdev_alloc();
+  mcdev->ops   = &fops;
+  mcdev->owner = THIS_MODULE;
+
+  ret = cdev_add(mcdev, dev_num, 1);
+  if (ret < 0) {
+    printk(KERN_ALERT "%s: unable to add cdev to kernel", DEVICE_NAME);
+    return ret;
   }
 
   printk(KERN_INFO "Module has been loaded\n");
@@ -33,7 +54,8 @@ static int __init test_init(void) {
 }
 
 static void __exit test_exit(void) {
-  unregister_chrdev(major, DEVICE_NAME);
+  cdev_del(mcdev);
+  unregister_chrdev_region(dev_num, 1);
   printk(KERN_INFO "Module has been unloaded\n");
 }
 
