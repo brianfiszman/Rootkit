@@ -1,0 +1,12 @@
+---
+BasedOnStyle: Google
+AlignConsecutiveAssignments: 'true'
+AlignConsecutiveDeclarations: 'true'
+AllowShortBlocksOnASingleLine: 'true'
+AllowShortIfStatementsOnASingleLine: 'true'
+AllowShortLoopsOnASingleLine: 'true'
+AlignOperands: 'true'
+BinPackParameters: 'false'
+BinPackArguments: 'false'
+
+...
