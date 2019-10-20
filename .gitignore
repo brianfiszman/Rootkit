@@ -1,5 +1,5 @@
 .vscode
 *.o
 *.ko
-.ccls
-.ccls-cache
+*.mod*
+.ccls*
