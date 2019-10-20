@@ -1,4 +1,6 @@
+
 obj-m+=rootkit.o
+rootkit-objs += device-init.o
 rootkit-objs += file-operations.o
 rootkit-objs += main.o
  

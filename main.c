@@ -11,6 +11,7 @@
 #include <linux/uaccess.h>
 #include <linux/version.h>
 #include "file-operations.h"
+#include "device-init.h"
 
 MODULE_LICENSE("GPL");
 
@@ -32,7 +33,6 @@ static struct file_operations fops = {
 static struct device *cdevice = NULL;
 struct class *        devClass;
 struct cdev *         mcdev;
-static int            major;
 int ret;  // will be used to hold return values of functions; this is because
           // the kernel stack is very small so declaring variables all over the
           // pass in our module functions eats up the stack very fast
@@ -49,14 +49,11 @@ static int __init test_init(void) {
 
   if (ret < 0) {
     printk(KERN_ALERT "Load failed\n");
-    return major;
+    return -1;
   }
 
-  major = MAJOR(dev_num);
-  printk(KERN_INFO "%s: major number is %d", DEVICE_NAME, major);
-  printk(KERN_INFO "\tuse \"use mknod /dev/%s c %d 0\" for device file",
-         DEVICE_NAME,
-         major);
+  print_major_number(&dev_num, DEVICE_NAME);
+
   mcdev        = cdev_alloc();
 
   cdev_init(mcdev, &fops);
