@@ -58,7 +58,8 @@ static int __init test_init(void) {
          DEVICE_NAME,
          major);
   mcdev        = cdev_alloc();
-  mcdev->ops   = &fops;
+
+  cdev_init(mcdev, &fops);
   mcdev->owner = THIS_MODULE;
 
   ret = cdev_add(mcdev, dev_num, 1);
