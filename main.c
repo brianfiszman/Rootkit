@@ -18,11 +18,6 @@ MODULE_LICENSE("GPL");
 #define DEVICE_NAME "TestDevice"  // name--> appears in /proc/devices
 #define CLASS_NAME "Test"         ///< The device class
 
-static int uevent(struct device *dev, struct kobj_uevent_env *env) {
-  add_uevent_var(env, "DEVMODE=%#o", 0666);
-  return 0;
-}
-
 static struct file_operations fops = {
     .open    = dev_open,
     .read    = dev_read,
@@ -31,26 +26,15 @@ static struct file_operations fops = {
 };
 
 static struct device *cdevice = NULL;
-struct class *        devClass;
+struct class *        dev_class = NULL;
 struct cdev *         mcdev;
-int ret;  // will be used to hold return values of functions; this is because
+volatile static int ret;  // will be used to hold return values of functions; this is because
           // the kernel stack is very small so declaring variables all over the
           // pass in our module functions eats up the stack very fast
 dev_t dev_num;  // will hold major number that kernel gives us
 
 static int __init test_init(void) {
-  ret = alloc_chrdev_region(&dev_num, 0, 1, DEVICE_NAME);
-
-  // Create a class which will appear at /sys/class
-  devClass             = class_create(THIS_MODULE, CLASS_NAME);
-  devClass->dev_uevent = uevent;
-
-  cdevice = device_create(devClass, NULL, dev_num, NULL, DEVICE_NAME);
-
-  if (ret < 0) {
-    printk(KERN_ALERT "Load failed\n");
-    return -1;
-  }
+  dev_class = init_char_device(&dev_num, dev_class, cdevice, DEVICE_NAME, CLASS_NAME);
 
   print_major_number(&dev_num, DEVICE_NAME);
 
@@ -71,10 +55,10 @@ static int __init test_init(void) {
 }
 
 static void __exit test_exit(void) {
-  device_destroy(devClass, dev_num);
+  device_destroy(dev_class, dev_num);
   cdev_del(mcdev);
-  class_unregister(devClass);
-  class_destroy(devClass);
+  class_unregister(dev_class);
+  class_destroy(dev_class);
   unregister_chrdev_region(dev_num, 1);
   printk(KERN_INFO "Module has been unloaded\n");
 }
