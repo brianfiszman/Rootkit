@@ -25,25 +25,24 @@ static struct file_operations fops = {
     .release = dev_release,
 };
 
-static struct device *cdevice = NULL;
-struct class *        dev_class = NULL;
-struct cdev *         mcdev;
+struct char_device* _chdev;
 volatile static int ret;  // will be used to hold return values of functions; this is because
           // the kernel stack is very small so declaring variables all over the
           // pass in our module functions eats up the stack very fast
-dev_t dev_num;  // will hold major number that kernel gives us
 
 static int __init test_init(void) {
-  dev_class = init_char_device(&dev_num, dev_class, cdevice, DEVICE_NAME, CLASS_NAME);
+  _chdev = kmalloc(sizeof(struct char_device), GFP_KERNEL);
+  
+  ret = init_char_device(_chdev, DEVICE_NAME, CLASS_NAME);
 
-  print_major_number(&dev_num, DEVICE_NAME);
+  print_major_number(&_chdev->dev_num, DEVICE_NAME);
 
-  mcdev        = cdev_alloc();
+  _chdev->mcdev = cdev_alloc();
 
-  cdev_init(mcdev, &fops);
-  mcdev->owner = THIS_MODULE;
+  cdev_init(_chdev->mcdev, &fops);
+  _chdev->mcdev->owner = THIS_MODULE;
 
-  ret = cdev_add(mcdev, dev_num, 1);
+  ret = cdev_add(_chdev->mcdev, _chdev->dev_num, 1);
 
   if (ret < 0) {
     printk(KERN_ALERT "%s: unable to add cdev to kernel", DEVICE_NAME);
@@ -55,11 +54,12 @@ static int __init test_init(void) {
 }
 
 static void __exit test_exit(void) {
-  device_destroy(dev_class, dev_num);
-  cdev_del(mcdev);
-  class_unregister(dev_class);
-  class_destroy(dev_class);
-  unregister_chrdev_region(dev_num, 1);
+  device_destroy(_chdev->dev_class, _chdev->dev_num);
+  cdev_del(_chdev->mcdev);
+  class_unregister(_chdev->dev_class);
+  class_destroy(_chdev->dev_class);
+  unregister_chrdev_region(_chdev->dev_num, 1);
+  kfree(_chdev);
   printk(KERN_INFO "Module has been unloaded\n");
 }
 
