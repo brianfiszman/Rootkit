@@ -6,4 +6,6 @@ int     dev_release(struct inode *, struct file *);
 ssize_t dev_read(struct file *, char *, size_t, loff_t *);
 ssize_t dev_write(struct file *, const char *, size_t, loff_t *);
 
+extern struct file_operations fops;
+
 #endif

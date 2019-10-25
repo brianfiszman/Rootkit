@@ -18,6 +18,13 @@
 #define V(x) x
 #endif
 
+struct file_operations fops = {
+    .open    = dev_open,
+    .read    = dev_read,
+    .write   = dev_write,
+    .release = dev_release,
+};
+
 int dev_open(struct inode *inodep, struct file *filep) {
   printk(KERN_INFO "Device opened\n");
   return 0;
@@ -66,3 +73,5 @@ ssize_t dev_read(struct file *filep, char *buffer, size_t len, loff_t *offset) {
 
   return errors == 0 ? message_len : -EFAULT;
 }
+
+extern struct file_operations fops;

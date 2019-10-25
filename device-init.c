@@ -3,6 +3,8 @@
 #include <linux/init.h>
 #include <linux/device.h>
 #include <linux/fs.h>
+#include <linux/cdev.h>
+#include <linux/slab.h>
 #include "device-init.h"
 
 static int major;
@@ -11,6 +13,15 @@ volatile static int ret;
 static int uevent(struct device *dev, struct kobj_uevent_env *env) {
   add_uevent_var(env, "DEVMODE=%#o", 0666);
   return 0;
+}
+
+void clean_device(struct char_device *_chdev) {
+  device_destroy(_chdev->dev_class, _chdev->dev_num);
+  cdev_del(_chdev->mcdev);
+  class_unregister(_chdev->dev_class);
+  class_destroy(_chdev->dev_class);
+  unregister_chrdev_region(_chdev->dev_num, 1);
+  kfree(_chdev);
 }
 
 int init_char_device(struct char_device *_chdev, char *dev_name, char *class_name) {
@@ -28,6 +39,16 @@ int init_char_device(struct char_device *_chdev, char *dev_name, char *class_nam
   }
 
   return 0;
+}
+
+void alloc_char_device(struct char_device *_chdev) {
+  _chdev->mcdev = cdev_alloc();
+
+  cdev_init(_chdev->mcdev, &fops);
+  
+  _chdev->mcdev->owner = THIS_MODULE;
+
+  ret = cdev_add(_chdev->mcdev, _chdev->dev_num, 1);
 }
 
 void print_major_number(dev_t *dev_num, char *dev_name) {
